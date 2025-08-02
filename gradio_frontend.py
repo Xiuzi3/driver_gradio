@@ -324,6 +324,28 @@ class FatigueDetectionSystem:
 
         return stats
 
+    def clear_all(self):
+        """清除所有数据和界面内容"""
+        # 重置所有统计数据
+        self.detection_results = []
+        self.total_frames = 0
+        self.fatigue_frames = 0
+        self.yawn_frames = 0
+        self.fatigue_counter = 0
+        self.yawn_counter = 0
+        self.fatigue_detected = False
+        self.yawn_detected = False
+        self.last_fatigue_time = -1
+        self.last_yawn_time = -1
+
+        return (
+            None,  # input_video
+            None,  # output_video
+            "等待上传视频...",  # status_text
+            "上传视频并开始检测后，这里将显示详细的检测报告",  # report_output
+            "上传视频并开始检测后，这里将显示统计信息"  # statistics_output
+        )
+
     def create_interface(self):
         """创建Gradio界面"""
         with gr.Blocks(title="疲劳检测系统", theme=gr.themes.Soft()) as demo:
@@ -349,12 +371,18 @@ class FatigueDetectionSystem:
                             height=300
                         )
                     
-                    process_btn = gr.Button(
-                        " 开始疲劳检测",
-                        variant="primary",
-                        size="lg"
-                    )
-                    
+                    with gr.Row():
+                        process_btn = gr.Button(
+                            " 开始疲劳检测",
+                            variant="primary",
+                            size="lg"
+                        )
+                        clear_btn = gr.Button(
+                            " 清除",
+                            variant="secondary",
+                            size="lg"
+                        )
+
                     status_text = gr.Textbox(
                         label="处理状态",
                         value="等待上传视频...",
@@ -398,7 +426,13 @@ class FatigueDetectionSystem:
                 inputs=[input_video],
                 outputs=[output_video, status_text, report_output, statistics_output]
             )
-        
+
+            clear_btn.click(
+                fn=self.clear_all,
+                inputs=[],
+                outputs=[input_video, output_video, status_text, report_output, statistics_output]
+            )
+
         return demo
 
 def main():
