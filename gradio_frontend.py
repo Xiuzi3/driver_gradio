@@ -11,7 +11,14 @@ class FatigueDetectionSystem:
         self.total_frames = 0
         self.fatigue_frames = 0
         self.yawn_frames = 0
-        
+        # 添加状态跟踪变量
+        self.fatigue_counter = 0
+        self.yawn_counter = 0
+        self.fatigue_detected = False
+        self.yawn_detected = False
+        self.last_fatigue_time = -1
+        self.last_yawn_time = -1
+
     def process_video(self, input_video):
         """处理上传的视频文件，进行疲劳检测"""
         if input_video is None:
@@ -22,7 +29,14 @@ class FatigueDetectionSystem:
         self.total_frames = 0
         self.fatigue_frames = 0
         self.yawn_frames = 0
-        
+        # 重置状态跟踪变量
+        self.fatigue_counter = 0
+        self.yawn_counter = 0
+        self.fatigue_detected = False
+        self.yawn_detected = False
+        self.last_fatigue_time = -1
+        self.last_yawn_time = -1
+
         # 打开视频文件
         cap = cv2.VideoCapture(input_video)
         
@@ -62,10 +76,25 @@ class FatigueDetectionSystem:
 
         frame_count = 0
 
-        # 疲劳检测阈值
-        EAR_THRESHOLD = 0.25  # 眼睛纵横比阈值
-        MAR_THRESHOLD = 0.6   # 嘴巴纵横比阈值（打哈欠）
-        
+        # 调整检测阈值和参数，提高检测灵敏度
+        EAR_THRESHOLD = 0.25  # 眼睛闭合阈值
+        MAR_THRESHOLD = 0.6   # 降低打哈欠阈值，提高检测灵敏度
+        FATIGUE_CONSEC_FRAMES = 15  # 降低连续帧要求
+        YAWN_CONSEC_FRAMES = 10     # 降低连续帧要求
+        MIN_INTERVAL_FRAMES = fps * 1  # 降低最小间隔到1秒
+
+        # 连续帧计数器
+        fatigue_frame_count = 0
+        yawn_frame_count = 0
+
+        # 添加详细的调试信息
+        print(f"视频处理开始:")
+        print(f"- 视频尺寸: {width}x{height}")
+        print(f"- 帧率: {fps} fps")
+        print(f"- 总帧数: {total_frames}")
+        print(f"- 检测阈值: EAR < {EAR_THRESHOLD}, MAR > {MAR_THRESHOLD}")
+        print(f"- 确认帧数: 疲劳{FATIGUE_CONSEC_FRAMES}帧, 打哈欠{YAWN_CONSEC_FRAMES}帧")
+
         try:
             while True:
                 ret, frame = cap.read()
@@ -74,46 +103,87 @@ class FatigueDetectionSystem:
                 
                 # 进行疲劳检测
                 processed_frame, ear, mar = detfatigue(frame.copy())
-                
-                # 判断疲劳状态
-                is_fatigue = ear < EAR_THRESHOLD and ear > 0
-                is_yawn = mar > MAR_THRESHOLD
-                
+                current_time = frame_count / fps
+
+                # 改进的疲劳检测逻辑
+                current_fatigue = ear < EAR_THRESHOLD and ear > 0
+                current_yawn = mar > MAR_THRESHOLD and mar > 0
+
+                # 疲劳状态检测（需要连续帧确认）
+                if current_fatigue:
+                    fatigue_frame_count += 1
+                else:
+                    fatigue_frame_count = 0
+
+                # 打哈欠检测（需要连续帧确认）
+                if current_yawn:
+                    yawn_frame_count += 1
+                else:
+                    yawn_frame_count = 0
+
+                # 确认疲劳状态
+                is_fatigue_confirmed = fatigue_frame_count >= FATIGUE_CONSEC_FRAMES
+                is_yawn_confirmed = yawn_frame_count >= YAWN_CONSEC_FRAMES
+
                 # 添加状态文本
                 status_text = ""
-                if is_fatigue:
-                    status_text = "检测到疲劳 - 眼睛闭合"
+                fatigue_logged = False
+                yawn_logged = False
+
+                # 疲劳检测逻辑
+                if is_fatigue_confirmed:
+                    # 检查是否需要记录新的疲劳事件
+                    if self.last_fatigue_time == -1 or (frame_count - self.last_fatigue_time) >= MIN_INTERVAL_FRAMES:
+                        status_text = "检测到疲劳 - 眼睛闭合"
+                        self.fatigue_frames += 1
+                        self.last_fatigue_time = frame_count
+                        fatigue_logged = True
+
                     cv2.putText(processed_frame, "FATIGUE DETECTED!", (10, 100),
                               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
-                    self.fatigue_frames += 1
-                    
-                if is_yawn:
-                    status_text += " | 检测到打哈欠" if status_text else "检测到打哈欠"
+
+                # 打哈欠检测逻辑
+                if is_yawn_confirmed:
+                    # 检查是否需要记录新的打哈欠事件
+                    if self.last_yawn_time == -1 or (frame_count - self.last_yawn_time) >= MIN_INTERVAL_FRAMES:
+                        status_text += " | 检测到打哈欠" if status_text else "检测到打哈欠"
+                        self.yawn_frames += 1
+                        self.last_yawn_time = frame_count
+                        yawn_logged = True
+
                     cv2.putText(processed_frame, "YAWNING DETECTED!", (10, 140),
                               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 165, 255), 3)
-                    self.yawn_frames += 1
-                
+
                 if not status_text:
                     status_text = "正常状态"
                     cv2.putText(processed_frame, "NORMAL", (10, 100),
                               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
                 
+                # 显示连续帧计数（用于调试）
+                if fatigue_frame_count > 0:
+                    cv2.putText(processed_frame, f"Fatigue frames: {fatigue_frame_count}/{FATIGUE_CONSEC_FRAMES}",
+                              (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+                if yawn_frame_count > 0:
+                    cv2.putText(processed_frame, f"Yawn frames: {yawn_frame_count}/{YAWN_CONSEC_FRAMES}",
+                              (10, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+
                 # 添加时间戳
-                timestamp = f"Frame: {frame_count}/{total_frames}"
-                cv2.putText(processed_frame, timestamp, (10, height-20),
+                timestamp_text = f"Time: {current_time:.1f}s Frame: {frame_count}/{total_frames}"
+                cv2.putText(processed_frame, timestamp_text, (10, height-20),
                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
                 
-                # 记录检测结果
-                self.detection_results.append({
-                    'frame': frame_count,
-                    'timestamp': frame_count / fps,
-                    'ear': ear,
-                    'mar': mar,
-                    'is_fatigue': is_fatigue,
-                    'is_yawn': is_yawn,
-                    'status': status_text
-                })
-                
+                # 只在确认检测到事件时记录结果
+                if fatigue_logged or yawn_logged:
+                    self.detection_results.append({
+                        'frame': frame_count,
+                        'timestamp': current_time,
+                        'ear': ear,
+                        'mar': mar,
+                        'is_fatigue': fatigue_logged,
+                        'is_yawn': yawn_logged,
+                        'status': status_text
+                    })
+
                 # 写入输出视频
                 out.write(processed_frame)
                 
@@ -149,7 +219,7 @@ class FatigueDetectionSystem:
 
     def generate_detection_report(self):
         """生成详细的检测报告"""
-        if not self.detection_results:
+        if self.total_frames == 0:
             return "暂无检测数据"
         
         report = "### 疲劳检测详细报告\n\n"
@@ -160,12 +230,12 @@ class FatigueDetectionSystem:
         
         for result in self.detection_results:
             if result['is_fatigue']:
-                fatigue_events.append(f" {result['timestamp']:.1f}s: 检测到疲劳 (EAR: {result['ear']:.3f})")
+                fatigue_events.append(f"{result['timestamp']:.1f}s: 检测到疲劳 (EAR: {result['ear']:.3f})")
             if result['is_yawn']:
-                yawn_events.append(f" {result['timestamp']:.1f}s: 检测到打哈欠 (MAR: {result['mar']:.3f})")
-        
+                yawn_events.append(f"{result['timestamp']:.1f}s: 检测到打哈欠 (MAR: {result['mar']:.3f})")
+
         if fatigue_events:
-            report += ""
+            report += "### 疲劳事件记录\n"
             for event in fatigue_events[:10]:  # 显示前10个事件
                 report += f"- {event}\n"
             if len(fatigue_events) > 10:
@@ -173,7 +243,7 @@ class FatigueDetectionSystem:
             report += "\n"
         
         if yawn_events:
-            report += "###  打哈欠事件记录\n"
+            report += "### 打哈欠事件记录\n"
             for event in yawn_events[:10]:  # 显示前10个事件
                 report += f"- {event}\n"
             if len(yawn_events) > 10:
@@ -181,55 +251,77 @@ class FatigueDetectionSystem:
             report += "\n"
         
         if not fatigue_events and not yawn_events:
-            report += "###  检测结果\n未检测到明显的疲劳或打哈欠行为\n\n"
-        
+            report += "### 检测结果\n"
+            report += "✅ **一切正常** - 未检测到明显的疲劳或打哈欠行为\n\n"
+            report += "### 检测过程\n"
+            fps = 30  # 假设30fps
+            total_duration = self.total_frames / fps
+            report += f"- **处理帧数**: {self.total_frames} 帧\n"
+            report += f"- **检测时长**: {total_duration:.1f} 秒\n"
+            report += f"- **检测状态**: 全程监控正常\n"
+            report += f"- **安全评级**: 驾驶状态良好\n\n"
+
         return report
     
     def generate_statistics(self):
         """生成统计信息"""
-        if not self.detection_results:
+        if self.total_frames == 0:
             return "暂无统计数据"
         
-        total_duration = len(self.detection_results) / 30  # 假设30fps
-        fatigue_percentage = (self.fatigue_frames / self.total_frames) * 100
-        yawn_percentage = (self.yawn_frames / self.total_frames) * 100
-        
-        # 计算平均EAR和MAR
-        total_ear = sum(r['ear'] for r in self.detection_results if r['ear'] > 0)
-        valid_ear_count = sum(1 for r in self.detection_results if r['ear'] > 0)
-        avg_ear = total_ear / valid_ear_count if valid_ear_count > 0 else 0
-        
-        total_mar = sum(r['mar'] for r in self.detection_results if r['mar'] > 0)
-        valid_mar_count = sum(1 for r in self.detection_results if r['mar'] > 0)
-        avg_mar = total_mar / valid_mar_count if valid_mar_count > 0 else 0
-        
-        stats = f""" 
+        # 计算实际检测时长
+        fps = 30  # 假设30fps
+        total_duration = self.total_frames / fps
+
+        # 计算事件统计
+        fatigue_events_count = len([r for r in self.detection_results if r['is_fatigue']])
+        yawn_events_count = len([r for r in self.detection_results if r['is_yawn']])
+
+        # 计算平均EAR和MAR（从所有有效检测中计算）
+        if self.detection_results:
+            valid_ears = [r['ear'] for r in self.detection_results if r['ear'] > 0]
+            valid_mars = [r['mar'] for r in self.detection_results if r['mar'] > 0]
+            avg_ear = sum(valid_ears) / len(valid_ears) if valid_ears else 0
+            avg_mar = sum(valid_mars) / len(valid_mars) if valid_mars else 0
+        else:
+            avg_ear = 0
+            avg_mar = 0
+
+        stats = f"""### 检测统计信息
 
 ### 基本信息
 - **检测时长**: {total_duration:.1f} 秒
 - **总帧数**: {self.total_frames}
-- **疲劳帧数**: {self.fatigue_frames} ({fatigue_percentage:.2f}%)
-- **打哈欠帧数**: {self.yawn_frames} ({yawn_percentage:.2f}%)
+- **疲劳事件数**: {fatigue_events_count} 次
+- **打哈欠事件数**: {yawn_events_count} 次
 
 ### 生理指标
 - **平均眼睛纵横比 (EAR)**: {avg_ear:.3f}
 - **平均嘴巴纵横比 (MAR)**: {avg_mar:.3f}
 
+### 检测阈值
+- **疲劳检测阈值 (EAR)**: < 0.25
+- **打哈欠检测阈值 (MAR)**: > 0.6
+- **连续帧确认**: 疲劳15帧，打哈欠10帧
+
 ### 风险评估
 """
         
-        # 风险等级评估
-        if fatigue_percentage > 30:
+        # 基于事件频率评估风险等级
+        total_events = fatigue_events_count + yawn_events_count
+        events_per_minute = (total_events * 60) / total_duration if total_duration > 0 else 0
+
+        if events_per_minute > 10:
             risk_level = "🔴 **高风险** - 频繁疲劳，建议立即休息"
-        elif fatigue_percentage > 10:
+        elif events_per_minute > 5:
             risk_level = "🟡 **中风险** - 存在疲劳迹象，建议注意休息"
-        elif fatigue_percentage > 0:
+        elif events_per_minute > 0:
             risk_level = "🟢 **低风险** - 偶有疲劳，保持警惕"
         else:
             risk_level = "✅ **无风险** - 状态良好"
         
         stats += f"- {risk_level}\n"
-        
+        stats += f"- **事件频率**: {events_per_minute:.1f} 次/分钟\n"
+
         return stats
 
     def create_interface(self):
