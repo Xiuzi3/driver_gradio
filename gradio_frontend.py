@@ -230,9 +230,9 @@ class FatigueDetectionSystem:
         
         for result in self.detection_results:
             if result['is_fatigue']:
-                fatigue_events.append(f"{result['timestamp']:.1f}s: 检测到疲劳 (EAR: {result['ear']:.3f})")
+                fatigue_events.append(f"{result['timestamp']:.1f}s: 检测到疲劳 (眼睛比值:: {result['ear']:.3f})")
             if result['is_yawn']:
-                yawn_events.append(f"{result['timestamp']:.1f}s: 检测到打哈欠 (MAR: {result['mar']:.3f})")
+                yawn_events.append(f"{result['timestamp']:.1f}s: 检测到打哈欠 (嘴巴比值: {result['mar']:.3f})")
 
         if fatigue_events:
             report += "### 疲劳事件记录\n"
