@@ -19,7 +19,7 @@ class FatigueDetectionSystem:
         self.last_fatigue_time = -1
         self.last_yawn_time = -1
 
-    def process_video(self, input_video):
+    def process_video(self, input_video, progress=gr.Progress()):
         """处理上传的视频文件，进行疲劳检测"""
         if input_video is None:
             return None, "请先上传视频文件", "", ""
@@ -190,12 +190,14 @@ class FatigueDetectionSystem:
                 frame_count += 1
                 self.total_frames = frame_count
                 
-                # 更新进度
-                if frame_count % 30 == 0:  # 每30帧更新一次进度
-                    progress = (frame_count / total_frames) * 100 if total_frames > 0 else 0
-                    progress_info = f"处理进度: {progress:.1f}% ({frame_count}/{total_frames})"
-                    print(progress_info)
-        
+                # 使用Gradio进度条显示百分比进度
+                if frame_count % 10 == 0:  # 每10帧更新一次进度
+                    current_time = frame_count / fps
+                    total_time = total_frames / fps
+                    progress_ratio = (current_time / total_time) if total_time > 0 else 0
+                    progress_text = f"处理进度: {progress_ratio*100:.1f}% ({current_time:.1f}s/{total_time:.1f}s)"
+                    progress(progress_ratio, desc=progress_text)
+
         except Exception as e:
             cap.release()
             out.release()
