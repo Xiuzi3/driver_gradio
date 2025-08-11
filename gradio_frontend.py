@@ -77,8 +77,8 @@ class FatigueDetectionSystem:
         frame_count = 0
 
         # 调整检测阈值和参数，提高检测灵敏度
-        EAR_THRESHOLD = 0.25  # 眼睛闭合阈值
-        MAR_THRESHOLD = 0.6   # 降低打哈欠阈值，提高检测灵敏度
+        EAR_THRESHOLD = 0.3  # 眼睛闭合阈值
+        MAR_THRESHOLD = 0.5   # 降低打哈欠阈值，提高检测灵敏度
         FATIGUE_CONSEC_FRAMES = 15  # 降低连续帧要求
         YAWN_CONSEC_FRAMES = 10     # 降低连续帧要求
         MIN_INTERVAL_FRAMES = fps * 1  # 降低最小间隔到1秒
@@ -286,26 +286,6 @@ class FatigueDetectionSystem:
             avg_ear = 0
             avg_mar = 0
 
-        stats = f"""### 检测统计信息
-
-### 基本信息
-- **检测时长**: {total_duration:.1f} 秒
-- **总帧数**: {self.total_frames}
-- **疲劳事件数**: {fatigue_events_count} 次
-- **打哈欠事件数**: {yawn_events_count} 次
-
-### 生理指标
-- **平均眼睛纵横比 (EAR)**: {avg_ear:.3f}
-- **平均嘴巴纵横比 (MAR)**: {avg_mar:.3f}
-
-### 检测阈值
-- **疲劳检测阈值 (EAR)**: < 0.25
-- **打哈欠检测阈值 (MAR)**: > 0.6
-- **连续帧确认**: 疲劳15帧，打哈欠10帧
-
-### 风险评估
-"""
-        
         # 基于事件频率评估风险等级
         total_events = fatigue_events_count + yawn_events_count
         events_per_minute = (total_events * 60) / total_duration if total_duration > 0 else 0
@@ -318,9 +298,28 @@ class FatigueDetectionSystem:
             risk_level = "🟢 **低风险** - 偶有疲劳，保持警惕"
         else:
             risk_level = "✅ **无风险** - 状态良好"
-        
-        stats += f"- {risk_level}\n"
-        stats += f"- **事件频率**: {events_per_minute:.1f} 次/分钟\n"
+
+        stats = f"""### 检测统计信息
+
+### 基本信息
+- **检测时长**: {total_duration:.1f} 秒
+- **总帧数**: {self.total_frames}
+- **疲劳事件数**: {fatigue_events_count} 次
+- **打哈欠事件数**: {yawn_events_count} 次
+
+### 风险评估
+- {risk_level}
+- **事件频率**: {events_per_minute:.1f} 次/分钟
+
+### 生理指标
+- **平均眼睛纵横比 (EAR)**: {avg_ear:.3f}
+- **平均嘴巴纵横比 (MAR)**: {avg_mar:.3f}
+
+### 检测阈值
+- **疲劳检测阈值 (EAR)**: < 0.25
+- **打哈欠检测阈值 (MAR)**: > 0.6
+- **连续帧确认**: 疲劳15帧，打哈欠10帧
+"""
 
         return stats
 
@@ -383,12 +382,40 @@ class FatigueDetectionSystem:
                             size="lg"
                         )
 
+                    gr.Markdown("### 处理状态")
                     status_text = gr.Textbox(
                         label="处理状态",
                         value="等待上传视频...",
                         interactive=False
                     )
-                
+
+                    # 添加示例视频选择
+                    gr.Markdown("### 示例视频")
+                    with gr.Row():
+                        example_video_1 = gr.Video(
+                            value="video/1.mp4",
+                            label="示例视频 1",
+                            height=200,
+                            interactive=False
+                        )
+                        example_video_2 = gr.Video(
+                            value="video/2.mp4",
+                            label="示例视频 2",
+                            height=200,
+                            interactive=False
+                        )
+                        example_video_3 = gr.Video(
+                            value="video/3.mp4",
+                            label="示例视频 3",
+                            height=200,
+                            interactive=False
+                        )
+
+                    with gr.Row():
+                        load_example_1_btn = gr.Button("使用示例1", size="sm")
+                        load_example_2_btn = gr.Button("使用示例2", size="sm")
+                        load_example_3_btn = gr.Button("使用示例3", size="sm")
+
                 # 右侧：检测结果区域
                 with gr.Column(scale=2):
                     gr.Markdown("### 检测结果")
@@ -397,29 +424,32 @@ class FatigueDetectionSystem:
                         with gr.Tab("统计信息"):
                             statistics_output = gr.Markdown(
                                 value="上传视频并开始检测后，这里将显示统计信息",
-                                height=400
+                                height=320
                             )
                         
                         with gr.Tab("详细报告"):
                             report_output = gr.Markdown(
                                 value="上传视频并开始检测后，这里将显示详细的检测报告",
-                                height=400
+                                height=320
                             )
-            
-            # 说明信息
-            gr.Markdown("""
-            ### 使用说明
-            1. 点击左侧"上传视频文件"按钮，选择要检测的视频
-            2. 点击"开始疲劳检测"按钮开始处理
-            3. 处理完成后，左侧将显示带有检测结果的视频
-            4. 右侧将显示详细的统计信息和检测报告
-            
-            ### 检测指标
-            - **EAR (眼睛纵横比)**: < 0.25 表示眼睛闭合/疲劳
-            - **MAR (嘴巴纵横比)**: > 0.6 表示打哈欠
-            - **风险等级**: 根据疲劳帧占比自动评估
-            """)
-            
+
+                    # 将使用说明和检测指标移到右侧
+                    gr.Markdown("### 使用说明")
+                    gr.Markdown("""
+                    1. 点击左侧"上传视频文件"按钮，选择要检测的视频
+                    2. 或者选择下方的示例视频并点击"加载示例视频"
+                    3. 点击"开始疲劳检测"按钮开始处理
+                    4. 处理完成后，左侧将显示带有检测结果的视频
+                    5. 右侧将显示详细的统计信息和检测报告
+                    """)
+
+                    gr.Markdown("### 检测指标")
+                    gr.Markdown("""
+                    - **EAR (眼睛纵横比)**: < 0.25 表示眼睛闭合/疲劳
+                    - **MAR (嘴巴纵横比)**: > 0.6 表示打哈欠
+                    - **风险等级**: 根据疲劳帧占比自动评估
+                    """)
+
             # 绑定事件
             process_btn.click(
                 fn=self.process_video,
@@ -431,6 +461,20 @@ class FatigueDetectionSystem:
                 fn=self.clear_all,
                 inputs=[],
                 outputs=[input_video, output_video, status_text, report_output, statistics_output]
+            )
+
+            # 加载示例视频事件
+            load_example_1_btn.click(
+                fn=lambda: "video/1.mp4",
+                outputs=[input_video]
+            )
+            load_example_2_btn.click(
+                fn=lambda: "video/2.mp4",
+                outputs=[input_video]
+            )
+            load_example_3_btn.click(
+                fn=lambda: "video/3.mp4",
+                outputs=[input_video]
             )
 
         return demo
