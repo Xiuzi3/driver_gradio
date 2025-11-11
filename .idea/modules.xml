@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/yolov5-deepsort-driver-distracted-driving-behavior-detection.iml" filepath="$PROJECT_DIR$/.idea/yolov5-deepsort-driver-distracted-driving-behavior-detection.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/Driver_Fatigue_Detection.iml" filepath="$PROJECT_DIR$/.idea/Driver_Fatigue_Detection.iml" />
     </modules>
   </component>
 </project>
